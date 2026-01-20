@@ -11,48 +11,35 @@ My personal LazyVim configuration.
 brew install neovim
 ```
 
-**Ubuntu/Debian**:
+**Linux**:
 ```bash
-# Add Neovim PPA for latest version
+# Ubuntu/Debian
 sudo add-apt-repository ppa:neovim-ppa/unstable
 sudo apt update
 sudo apt install neovim
-```
 
-**Arch Linux**:
-```bash
+# Arch
 sudo pacman -S neovim
-```
-
-**From source** (any platform):
-```bash
-git clone https://github.com/neovim/neovim.git
-cd neovim
-make CMAKE_BUILD_TYPE=Release
-sudo make install
 ```
 
 ### Install Dependencies
 
+**macOS**:
 ```bash
-# Required
-brew install git ripgrep fd lazygit
-
-# Optional but recommended
-brew install node npm python3
+brew install git ripgrep fd lazygit node python3
 pip3 install pynvim
 npm install -g neovim
 ```
 
-**Ubuntu/Debian**:
+**Linux**:
 ```bash
-sudo apt install git ripgrep fd-find
-# lazygit - install from GitHub releases
+sudo apt install git ripgrep fd-find nodejs npm python3-pip
+pip3 install pynvim
+npm install -g neovim
+# lazygit - https://github.com/jesseduffield/lazygit#installation
 ```
 
 ## Installation
-
-### Fresh Install
 
 ```bash
 # Backup existing config (if any)
@@ -68,41 +55,13 @@ git clone https://github.com/Luodian/lazyvim.git ~/.config/nvim
 nvim
 ```
 
-### Update Config
+## Update
 
 ```bash
-cd ~/.config/nvim
-git pull
+cd ~/.config/nvim && git pull
 ```
-
-## Structure
-
-```
-~/.config/nvim/
-├── init.lua              # Entry point
-├── lazy-lock.json        # Plugin versions lock
-├── lazyvim.json          # LazyVim extras config
-├── lua/
-│   ├── config/
-│   │   ├── autocmds.lua  # Auto commands
-│   │   ├── keymaps.lua   # Key mappings
-│   │   ├── lazy.lua      # Lazy.nvim bootstrap
-│   │   └── options.lua   # Neovim options
-│   └── plugins/
-│       ├── explorer.lua  # File explorer config
-│       ├── markdown.lua  # Markdown support
-│       └── python.lua    # Python development
-└── stylua.toml           # Lua formatter config
-```
-
-## Key Features
-
-- Based on [LazyVim](https://github.com/LazyVim/LazyVim)
-- Python development support
-- Markdown preview and editing
-- Custom file explorer settings
 
 ## References
 
-- [LazyVim Documentation](https://lazyvim.github.io/)
-- [Neovim Documentation](https://neovim.io/doc/)
+- [LazyVim](https://lazyvim.github.io/)
+- [Neovim](https://neovim.io/doc/)
