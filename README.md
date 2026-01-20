@@ -119,11 +119,7 @@ source ~/.zshrc
 ### Configuration
 
 ```bash
-# Set API key
-export ANTHROPIC_API_KEY="your-api-key"
-
-# Or configure via
-opencode config
+opencode auth
 ```
 
 - [OpenCode](https://github.com/opencode-ai/opencode)
