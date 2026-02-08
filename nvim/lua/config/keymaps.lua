@@ -21,7 +21,9 @@ map("n", "<leader>gb", function()
       vim.fn.system("git checkout " .. vim.fn.shellescape(branch))
       if vim.v.shell_error == 0 then
         vim.notify("Switched to " .. branch, vim.log.levels.INFO)
-        vim.cmd("checktime")
+        vim.defer_fn(function()
+          vim.cmd("checktime")
+        end, 100)
       else
         vim.notify("Failed to switch branch", vim.log.levels.ERROR)
       end
