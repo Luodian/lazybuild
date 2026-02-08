@@ -30,3 +30,40 @@ map("n", "<leader>gb", function()
     end
   end)
 end, { desc = "Git: Switch branch" })
+
+map("n", "<leader>gw", function()
+  local worktrees = vim.fn.systemlist("git worktree list | awk '{print $1}'")
+  if vim.v.shell_error ~= 0 or #worktrees == 0 then
+    vim.notify("No worktrees found", vim.log.levels.WARN)
+    return
+  end
+  vim.ui.select(worktrees, {
+    prompt = "Switch to worktree:",
+  }, function(choice)
+    if choice then
+      vim.cmd("cd " .. vim.fn.fnameescape(choice))
+      vim.notify("Switched to worktree: " .. choice, vim.log.levels.INFO)
+      vim.cmd("checktime")
+    end
+  end)
+end, { desc = "Git: Switch worktree" })
+
+map("n", "<leader>gW", function()
+  local worktrees = vim.fn.systemlist("git worktree list | tail -n +2 | awk '{print $1}'")
+  if #worktrees == 0 then
+    vim.notify("No additional worktrees to remove", vim.log.levels.WARN)
+    return
+  end
+  vim.ui.select(worktrees, {
+    prompt = "Remove worktree:",
+  }, function(choice)
+    if choice then
+      vim.fn.system("git worktree remove " .. vim.fn.shellescape(choice))
+      if vim.v.shell_error == 0 then
+        vim.notify("Removed worktree: " .. choice, vim.log.levels.INFO)
+      else
+        vim.notify("Failed to remove worktree", vim.log.levels.ERROR)
+      end
+    end
+  end)
+end, { desc = "Git: Remove worktree" })
