@@ -3,9 +3,50 @@
 
 local map = vim.keymap.set
 
-map("n", "<C-S-f>", function() require("grug-far").open() end, { desc = "Global Search & Replace" })
-map("n", "<C-S-h>", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, { desc = "Replace word under cursor" })
-map("v", "<C-S-h>", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, { desc = "Replace selection" })
+-- ─────────────────────────────────────────────────
+-- Editor / clipboard
+-- ─────────────────────────────────────────────────
+
+-- Make Command+V paste from system clipboard in Neovide.
+-- Helps in plugin inputs (e.g. "New File") where macOS paste isn't handled.
+if vim.g.neovide then
+  map("i", "<D-v>", "<C-r>+", { desc = "Paste from clipboard" })
+  map("c", "<D-v>", "<C-r>+", { desc = "Paste from clipboard" })
+end
+
+-- Format current JSON buffer with jq (command defined in autocmds.lua)
+map("n", "<leader>xx", "<cmd>JqFormat<cr>", { desc = "Autoformat JSON (jq)" })
+
+-- ─────────────────────────────────────────────────
+-- Search
+-- ─────────────────────────────────────────────────
+
+-- Visual select then `/` searches the selected text in the current buffer.
+map("v", "/", 'y/\\V<C-R>"<CR>', { noremap = true, desc = "Search visual selection" })
+
+-- Visual select then `<leader>/` greps the selection project-wide via Snacks picker.
+map("v", "<leader>/", function()
+  vim.cmd('noau normal! "vy')
+  local text = vim.fn.getreg("v")
+  Snacks.picker.grep({ search = text })
+end, { desc = "Grep visual selection (root dir)" })
+
+-- Global search & replace via grug-far
+map("n", "<C-S-f>", function()
+  require("grug-far").open()
+end, { desc = "Global Search & Replace" })
+
+map("n", "<C-S-h>", function()
+  require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } })
+end, { desc = "Replace word under cursor" })
+
+map("v", "<C-S-h>", function()
+  require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } })
+end, { desc = "Replace selection" })
+
+-- ─────────────────────────────────────────────────
+-- Git: branch & worktree pickers
+-- ─────────────────────────────────────────────────
 
 map("n", "<leader>gb", function()
   local branches = vim.fn.systemlist("git branch --all --sort=-committerdate | sed 's/^[* ]*//' | sed 's#remotes/origin/##'")

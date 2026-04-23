@@ -1,0 +1,39 @@
+#!/bin/bash
+width=${1:-85%}
+height=${2:-85%}
+shift 2 2>/dev/null || true
+
+session=${POPUP_TMUX_SESSION:-__popup_scratch__}
+shell_bin=${SHELL:-/bin/zsh}
+current_path=$(tmux display-message -p "#{pane_current_path}")
+
+if [ "$#" -gt 0 ]; then
+    launch_cmd="$*"
+elif [ -n "$POPUP_TMUX_COMMAND" ]; then
+    launch_cmd=$POPUP_TMUX_COMMAND
+else
+    launch_cmd="$shell_bin -l"
+fi
+
+if [ "$(tmux display-message -p "#{session_name}")" = "$session" ]; then
+    exec tmux detach-client
+fi
+
+stored_cmd=$(tmux show-options -t "$session" -v @popuptmux-command 2>/dev/null || true)
+if tmux has-session -t "$session" 2>/dev/null && [ "$stored_cmd" != "$launch_cmd" ]; then
+    tmux kill-session -t "$session"
+fi
+
+if ! tmux has-session -t "$session" 2>/dev/null; then
+    tmux new-session -Ad -s "$session" -n scratch -c "$current_path" "$launch_cmd"
+    tmux set-option -t "$session" status off
+    tmux set-option -t "$session" destroy-unattached off
+    tmux set-option -t "$session" @popuptmux-command "$launch_cmd"
+fi
+
+if [ "$(tmux list-panes -t "$session" -F '#{pane_dead}' 2>/dev/null)" = "1" ]; then
+    tmux respawn-pane -k -t "$session":1.1 -c "$current_path" "$launch_cmd"
+fi
+
+exec tmux display-popup -d "$current_path" -x C -y C -w "$width" -h "$height" -E \
+    "exec tmux attach-session -t \"$session\""
