@@ -101,7 +101,7 @@ tmux set-option -g 'status-format[0]' \
 # " │ " divider follows every tab except the last one in its row.
 # NB: no comma in this style — a literal comma here would be parsed as the
 # #{?...} branch separator and break the conditional.
-div=' #[fg=brightblack]│#[default] '
+div=' #[fg=#56697e]│#[default] '
 r=1
 for spec in "${rows[@]}"; do
   lo=${spec% *}; hi=${spec#* }
