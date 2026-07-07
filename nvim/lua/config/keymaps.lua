@@ -14,6 +14,10 @@ if vim.g.neovide then
   map("c", "<D-v>", "<C-r>+", { desc = "Paste from clipboard" })
 end
 
+-- `d` deletes into the black-hole register so it never touches the system clipboard
+-- (needed because clipboard=unnamedplus otherwise routes every delete through the pasteboard).
+map({ "n", "v" }, "d", '"_d', { desc = "Delete (no clipboard)" })
+
 -- Format current JSON buffer with jq (command defined in autocmds.lua)
 map("n", "<leader>xx", "<cmd>JqFormat<cr>", { desc = "Autoformat JSON (jq)" })
 
