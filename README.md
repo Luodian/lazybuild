@@ -73,7 +73,7 @@ lazybuild/
 - `prefix + J` — floating opencode session
 - `prefix + u` / `M-u` — fzf URL picker
 - Auto-restore sessions across reboot via `tmux-resurrect` + `tmux-continuum`
-- AI-named windows via `Luodian/tmux-autoname-agent-sessions`
+- AI-named windows via `scripts/agent-rename.sh` (Claude/Codex session → short LLM title, tagged with its Linear issue id)
 
 ## Updating
 

@@ -9,8 +9,8 @@
 # those either.
 #
 # Cooperative single-instance (last writer wins; superseded instances exit
-# cleanly), and self-terminates when the tmux server goes away. See the watcher
-# in tmux-autoname-agent-sessions for the same pattern and rationale.
+# cleanly), and self-terminates when the tmux server goes away. See the
+# --watch loop in agent-rename.sh for the same pattern and rationale.
 set -euo pipefail
 
 pidfile="${HOME}/.cache/tmux-ai-rename/spin.pid"
