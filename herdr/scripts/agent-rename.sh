@@ -23,6 +23,22 @@
 # CACHE_DIR/last-seq.json; a missing file (first run / restart) starts
 # frozen and never triggers the edge pass.
 #
+# Running progress (2026-09-26): while a group holds a working pane, its
+# label mirrors that pane's RAW terminal_title instead of the stripped one —
+# the agent's own animated status glyph (claude "◐/◑ X", omp "π ⠙ X") then
+# rotates in the tab name, so the sidebar shows whether a session is
+# running. When nothing is working the label falls back to the bare
+# stripped title (a finished session's last title is its final result). The
+# working representative is STICKY: the working pane whose glyph-free
+# stable title matches the current label keeps the label — its raw title is
+# refreshed in place, glyph and all — so a glyph rotation cannot break the
+# backing match, and focus moving between two active panes of one tab
+# cannot steal the label. Only a label the group no longer backs is handed
+# to the rank-first active pane. To keep the
+# animation visibly alive the watch loop sleeps 2s instead of the normal
+# interval whenever the previous pass saw any working pane
+# (CACHE_DIR/active.flag).
+#
 # Within a live group, both levels pick one representative pane the same
 # way: the active ("working") one first — the tick fires because something
 # is active, so the label reflects that pane's latest title — then the
@@ -143,27 +159,37 @@ def group_by(key):
 
 
 
-def display_name(p):
-    title = (p.get("terminal_title_stripped") or "").strip()
-    if not title:
+def strip_label(text):
+    # Stable, glyph-free form of a title OR an existing label: drop omp's
+    # brand + state separator ("π ⠦ X" → "X", same treatment as
+    # tmux/scripts/agent-rename.sh's omp_title) and strip a leading run of
+    # non-word chars for every agent (claude paints "✳ X", "◐ X", "◑ X" —
+    # the glyph animates while the agent works, so keeping it would rename
+    # every tick; CJK/Latin titles start with \w and pass through). Applied
+    # to current labels too, so hysteresis can match a session across its
+    # own glyph rotations.
+    if not text:
         return None
-    # Drop OMP's brand + state separator ("π ⠦ label", "π > label", "π: label"
-    # → "label") — the spinner animates while the agent works, so keeping it
-    # would rename the tab every tick and defeat the hysteresis above. Same
-    # treatment as tmux/scripts/agent-rename.sh's omp_title.
-    if title.startswith("π"):
-        title = re.sub(r"^π(?:\s+\S+)?\s*", "", title)
-    # Claude paints the same kind of animated status glyph into its own title
-    # ("✳ X", "◑ X", "◐ X", …) which terminal_title_stripped does not always
-    # remove — strip a leading run of non-word chars for every agent so no
-    # spinner leaks into a label (CJK/Latin titles start with \w and pass
-    # through untouched). Without this, claude tabs would carry a stale glyph
-    # and rename on every tick while the glyph rotates.
-    title = re.sub(r"^\W+\s*", "", title)
-    # Labels are the bare title — no cc//cdx//omp/ agent prefix. The tab shows
-    # one session's title; the agent kind added noise without disambiguating
-    # anything.
-    return title or None
+    text = text.strip()
+    if text.startswith("π"):
+        text = re.sub(r"^π(?:\s+\S+)?\s*", "", text)
+    # Labels are the bare title — no cc//cdx//omp/ agent prefix. The tab
+    # shows one session's title; the agent kind added noise without
+    # disambiguating anything.
+    return re.sub(r"^\W+\s*", "", text) or None
+
+
+def display_name(p):
+    # Idle/bare representation: the stable glyph-free title.
+    return strip_label(p.get("terminal_title_stripped"))
+
+
+def live_name(p):
+    # Working representation: the agent's own raw terminal title, status
+    # glyph included — the glyph animates while the session runs, which is
+    # the running-progress effect the tab label wants. Empty raw → bare.
+    title = (p.get("terminal_title") or "").strip()
+    return title or display_name(p)
 
 
 def maybe_rename(kind, oid, agents, current, force=False):
@@ -177,16 +203,31 @@ def maybe_rename(kind, oid, agents, current, force=False):
     # between ticks; this tick lands its final title, then it freezes).
     # Otherwise idle/done groups keep their last label: no renames fire
     # between bursts of activity, and a finished session keeps its result.
-    if not force and not any(p.get("agent_status") == "working" for p in agents):
+    working = [p for p in agents if p.get("agent_status") == "working"]
+    if not force and not working:
         return
-    names = [n for n in (display_name(p) for p in agents) if n]
+    if working:
+        # Sticky representative: the working pane whose glyph-FREE stable
+        # title matches the current label keeps the label, and only its raw
+        # glyph is refreshed. Matching raw titles here would let one glyph
+        # rotation break the match and hand the label to whichever working
+        # pane holds focus (the two-active-pane flap); matching stable
+        # titles keeps it on the session it already shows. A label backed
+        # by nobody — new session, renamed session — falls to rank order.
+        stable = strip_label(current)
+        back = [p for p in working if stable and display_name(p) == stable]
+        rep = min(back or working, key=rank)
+        names = [n for n in (live_name(p) for p in working) if n]
+        name = live_name(rep)
+    else:
+        names = [n for n in (display_name(p) for p in agents) if n]
+        name = display_name(min(agents, key=rank))
     if not names:
         return
-    # Hysteresis: while any pane in the group still backs the current label,
-    # keep it — focus moves between panes of one tab must not flap the label.
+    # Hysteresis: while a backing pane still carries the current label,
+    # keep it — focus moves between panes of one tab must not flap it.
     if current in names:
         return
-    name = display_name(min(agents, key=rank))
     if name and current != name:
         subprocess.run(["herdr", kind, "rename", oid, name], capture_output=True)
 
@@ -222,6 +263,15 @@ for ws_id, agents in group_by("workspace_id").items():
         force=seq_edge("workspaces", ws_id, ws_seq[ws_id]),
     )
 
+# Tell the watch loop whether anything is running: it shortens its sleep so
+# the animated labels stay visibly fresh while work is in flight.
+flag_path = os.path.join(sys.argv[4], "active.flag")
+with open(flag_path + ".tmp", "w") as fh:
+    fh.write(
+        "1" if any(p.get("agent_status") == "working" for p in agent_panes) else "0"
+    )
+os.replace(flag_path + ".tmp", flag_path)
+
 # Persist the watermark only after the pass, atomically: a tick that dies
 # mid-pass leaves the old watermark behind, so the next tick retries the
 # edge instead of silently dropping it.
@@ -247,7 +297,12 @@ if [[ "${1:-}" == "--watch" ]]; then
   while :; do
     [[ "$(cat "$pidfile" 2>/dev/null)" == "$$" ]] || exit 0
     rename_once || true
-    sleep "$interval"
+    if [[ "$(cat "$CACHE_DIR/active.flag" 2>/dev/null)" == "1" ]]; then
+      # Something is running: fast tick keeps the animated titles fresh.
+      sleep 2
+    else
+      sleep "$interval"
+    fi
   done
 fi
 
