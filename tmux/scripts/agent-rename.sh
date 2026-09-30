@@ -120,17 +120,35 @@ is_interactive_agent() {
   return 0
 }
 
+# Match an interactive OMP (Oh My Pi) agent — a `bun` process running the omp
+# CLI (pi-coding-agent). OMP already titles its own session (painted into the
+# pane title as "π <state> <label>"), so unlike claude/codex we reuse that
+# label instead of running a second LLM summary. Other bun processes (dev
+# servers, scripts) are excluded by requiring the omp/pi-coding-agent argv.
+is_omp_agent() {
+  local pid="$1" base args
+  base=$(comm_base_of "$pid") || return 1
+  [[ "$base" == "bun" ]] || return 1
+  args=$(pid_args_of "$pid")
+  case "$args" in
+    *'pi-coding-agent'*|*'oh-my-pi'*|*'bin/omp'*|*'/omp'*) return 0 ;;
+  esac
+  return 1
+}
+
 # Walk a pane's process subtree; print "type pid" for the first interactive
-# claude/codex found. BFS-ish via awk closure, so shallowest match wins.
+# claude/codex/omp found. BFS-ish via awk closure, so shallowest match wins.
 find_pane_agent() {
   local pane_pid="$1"
   # Check the pane_pid itself first (covers shells that exec claude directly).
   if is_interactive_agent "$pane_pid" "claude"; then printf 'claude %s\n' "$pane_pid"; return 0; fi
   if is_interactive_agent "$pane_pid" "codex";  then printf 'codex %s\n'  "$pane_pid"; return 0; fi
+  if is_omp_agent "$pane_pid";                 then printf 'omp %s\n'    "$pane_pid"; return 0; fi
   while read -r kid; do
     [[ -n "$kid" ]] || continue
     if is_interactive_agent "$kid" "claude"; then printf 'claude %s\n' "$kid"; return 0; fi
     if is_interactive_agent "$kid" "codex";  then printf 'codex %s\n'  "$kid"; return 0; fi
+    if is_omp_agent "$kid";                  then printf 'omp %s\n'    "$kid"; return 0; fi
   done < <(descendants "$pane_pid")
   return 1
 }
@@ -389,6 +407,23 @@ codex_title() {
   printf '%s\t%s\n' "$linear_id" "$title"
 }
 
+# ── OMP title ──────────────────────────────────────────────
+#
+# OMP paints its session title into the pane title as "π <sep> <label>"
+# (sep is the state spinner, ">" when idle, "!" when blocked; "π: <label>"
+# when the run-state separator is disabled). Reuse that label directly — OMP
+# keeps it current on every rename, so the tab tracks the OMP session with no
+# extra LLM call. Empty label (fresh session, bare "π") yields no title.
+omp_title() {
+  local pane_id="$1" t label
+  t=$(tmux display-message -p -t "$pane_id" '#{pane_title}' 2>/dev/null || true)
+  label=${t#π }      # "π ⠸ Analyze..." → "⠸ Analyze..."
+  label=${label#π:}  # disabled state: "π: Analyze..." → " Analyze..."
+  label=$(printf '%s' "$label" | sed -E 's/^[^[:alnum:]]+ ?//')
+  [[ -n "$label" ]] || return 1
+  printf '%s\n' "$label"
+}
+
 # ── window labelling ────────────────────────────────────────
 
 label_window() {
@@ -470,18 +505,18 @@ if [[ "${1:-}" == "--watch" ]]; then
 fi
 
 if [[ "${1:-}" == "--current" ]]; then
-  pane_list=$(tmux list-panes -F '#{pane_pid} #{window_id}' 2>/dev/null)
+  pane_list=$(tmux list-panes -F '#{pane_id} #{pane_pid} #{window_id}' 2>/dev/null)
   window_list=$(tmux display-message -p '#{window_id}')
 else
-  pane_list=$(tmux list-panes -a -F '#{pane_pid} #{window_id}' 2>/dev/null)
+  pane_list=$(tmux list-panes -a -F '#{pane_id} #{pane_pid} #{window_id}' 2>/dev/null)
   window_list=$(tmux list-windows -a -F '#{window_id}' 2>/dev/null)
 fi
 
 process_window() {
   local target_wid="$1"
-  local ai_type="" ai_pid=""
+  local ai_type="" ai_pid="" pane_id=""
 
-  while read -r pane_pid wid; do
+  while read -r pane_id pane_pid wid; do
     [[ "$wid" == "$target_wid" ]] || continue
     local found
     found=$(find_pane_agent "$pane_pid" || true)
@@ -496,14 +531,20 @@ process_window() {
     if [[ "$ai_type" == "claude" ]]; then
       prefix="cc"
       combined=$(claude_title "$ai_pid" 2>/dev/null || true)
+      # combined is "<linear_id>\t<title>"; a failed lookup leaves it empty,
+      # which parameter expansion just turns into an empty title too.
+      linear_id="${combined%%$'\t'*}"
+      title="${combined#*$'\t'}"
+    elif [[ "$ai_type" == "omp" ]]; then
+      prefix="omp"
+      title=$(omp_title "$pane_id" 2>/dev/null || true)
+      linear_id=""
     else
       prefix="cdx"
       combined=$(codex_title "$ai_pid" 2>/dev/null || true)
+      linear_id="${combined%%$'\t'*}"
+      title="${combined#*$'\t'}"
     fi
-    # combined is "<linear_id>\t<title>"; a failed lookup leaves it empty,
-    # which parameter expansion below just turns into an empty title too.
-    linear_id="${combined%%$'\t'*}"
-    title="${combined#*$'\t'}"
     [[ -n "$title" ]] || title="?"
     label_window "$target_wid" "$prefix" "$title" "$ai_pid" "$linear_id"
   else
