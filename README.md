@@ -64,7 +64,7 @@ lazybuild/
 - `<leader>gd{o,c,h,H}` — Diffview open / close / file history / branch history
 - `<leader>mp` / `<leader>ms` — Markdown preview toggle / stop
 
-### tmux (prefix `C-Space`)
+### tmux (prefix `` ` ``)
 - Zellij-style no-prefix nav: `M-h/j/k/l` move panes, `M-H/J/K/L` resize, `M-1..9` windows
 - `M--` / `M-\\` split horizontal / vertical, `M-t` new window, `M-w` kill pane, `M-z` zoom
 - `M-m` merge all windows into current, then cycle layouts; `M-M` reverse (break out)
