@@ -1,4 +1,6 @@
--- media files are opened with the system viewer via autocmd instead of in-terminal rendering
+-- media files are opened with the system viewer via autocmd instead of in-terminal rendering.
+-- macOS only (`open`); on headless Linux hosts there is no viewer, so leave the buffers alone.
+if vim.fn.executable("open") == 1 then
 vim.api.nvim_create_autocmd("BufReadCmd", {
   pattern = {
     -- image
@@ -29,5 +31,6 @@ vim.api.nvim_create_autocmd("BufReadCmd", {
     end)
   end,
 })
+end
 
 return {}
